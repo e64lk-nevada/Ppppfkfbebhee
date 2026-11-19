@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BTC Market Monitor</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#101522;color:#eef2ff}
+body{margin:0;padding:16px;max-width:1000px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:1.35rem;margin:8px 0}.tag{background:#243149;padding:6px 10px;border-radius:20px;font-size:.8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0}
+.card{background:#1a2233;border:1px solid #2b3850;border-radius:14px;padding:16px}
+.label{color:#aab6ce;font-size:.85rem}.value{font-size:1.55rem;font-weight:700;margin:8px 0}
+.small{font-size:.85rem;color:#aab6ce;word-break:break-word}.status{font-weight:700}
+.green{color:#62d99a}.red{color:#ff747c}.yellow{color:#ffd166}
+pre{white-space:pre-wrap;word-break:break-word;color:#cbd5e1}.foot{margin:20px 0;color:#8b9ab5;font-size:.8rem}
+button{border:0;border-radius:9px;padding:10px;background:#314666;color:white}
+</style>
+</head>
+<body>
+<header><h1>BTC / Polymarket Monitor</h1><span class="tag">PAPER MONITOR ONLY · NO ORDERS</span></header>
+<div class="grid">
+<div class="card"><div class="label">BTC Binance Spot</div><div class="value" id="binance">—</div><div class="small" id="binanceAge"></div></div>
+<div class="card"><div class="label">BTC Coinbase Spot</div><div class="value" id="coinbase">—</div><div class="small" id="coinbaseAge"></div></div>
+<div class="card"><div class="label">Price Cross-Check</div><div class="value" id="validation">Loading</div><div class="small" id="difference"></div></div>
+<div class="card"><div class="label">Signal monitor</div><div class="value" id="direction">—</div><div class="small" id="confidence"></div></div>
+<div class="card"><div class="label">Market discovery</div><div class="value" id="marketStatus">—</div><div class="small" id="marketTitle"></div><div class="small" id="marketTimer"></div></div>
+<div class="card"><div class="label">System status</div><div class="value status" id="system">—</div><div class="small" id="blocked"></div></div>
+</div>
+<div class="card"><div class="label">Diagnostics</div><pre id="diagnostics">Waiting for data…</pre><button onclick="refresh()">Refresh now</button></div>
+<p class="foot">Spot-price comparison is not Polymarket's settlement reference. No orders or paper wagers are executed.</p>
+<script>
+function money(v){return v==null?'—':Number(v).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2})}
+function age(ts){return ts?((Date.now()/1000-ts).toFixed(1)+'s ago'):'timestamp unavailable'}
+async function refresh(){
+ try{
+  const s=await fetch('/api/status').then(r=>r.json());
+  const p=s.prices||{},v=s.price_validation||{};
+  document.getElementById('binance').textContent=money(p.binance?.value);
+  document.getElementById('coinbase').textContent=money(p.coinbase?.value);
+  document.getElementById('binanceAge').textContent=p.binance?age(p.binance.timestamp):'Unavailable';
+  document.getElementById('coinbaseAge').textContent=p.coinbase?age(p.coinbase.timestamp):'Unavailable';
+  document.getElementById('validation').textContent=v.valid?'VALID':'INVALID / UNKNOWN';
+  document.getElementById('validation').className='value '+(v.valid?'green':'red');
+  document.getElementById('difference').textContent=v.difference_usd!=null?`Difference: $${v.difference_usd} (${v.difference_pct}%); limit ${v.limit_pct}%`:v.reason||'Not enough sources';
+  const pred=s.prediction||{};
+  document.getElementById('direction').textContent=pred.direction||'—';
+  document.getElementById('confidence').textContent=pred.confidence!=null?`Baseline score: ${pred.confidence}% · ${pred.reason||''}`:'No signal';
+  const m=s.market;
+  document.getElementById('marketStatus').textContent=m?'Candidate found':'No validated market found';
+  document.getElementById('marketTitle').textContent=m?.question||'Fail-closed: no market candidate';
+  document.getElementById('marketTimer').textContent=s.market_seconds_remaining!=null?`Seconds remaining: ${Math.floor(s.market_seconds_remaining)}`:'End time unknown';
+  document.getElementById('system').textContent=s.status||'—';
+  document.getElementById('system').className='value '+(s.status==='BLOCKED'?'red':'yellow');
+  document.getElementById('blocked').textContent=s.blocked_reason||'';
+  document.getElementById('diagnostics').textContent=JSON.stringify({updated:s.last_updated,mode:s.mode,priceValidation:v,trend:s.trend,market:m,blockReason:s.blocked_reason},null,2);
+ }catch(e){document.getElementById('system').textContent='API error';document.getElementById('blocked').textContent=String(e)}
+}
+refresh();setInterval(refresh,5000);
+</script>
+</body>
+</html>
